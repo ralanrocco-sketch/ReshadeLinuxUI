@@ -1,0 +1,1 @@
+"""ReShade installation helpers."""

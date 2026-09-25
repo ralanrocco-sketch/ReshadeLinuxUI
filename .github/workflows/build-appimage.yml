@@ -1,0 +1,28 @@
+name: Build AppImage
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  appimage:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build and bundled helper tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3 python3-pip p7zip-full curl git grep file which
+      - name: Download linuxdeploy
+        run: |
+          curl -L --fail --retry 3 -o linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+      - name: Build
+        run: APPIMAGE_EXTRACT_AND_RUN=1 LINUXDEPLOY="$PWD/linuxdeploy-x86_64.AppImage" bash packaging/build-appimage.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reshade-linux-gui-appimage
+          path: ReShade-Linux-GUI-x86_64.AppImage
+          if-no-files-found: error

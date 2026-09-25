@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=ReShade Linux GUI
+Comment=Manage ReShade for Steam Proton games
+Exec=reshade-linux-gui
+Icon=reshade-linux-gui
+Categories=Game;Utility;
+Terminal=false
