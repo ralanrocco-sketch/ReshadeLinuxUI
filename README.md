@@ -30,7 +30,7 @@ The upstream script also requires `7z`, `curl`, `git`, `grep`, `file`, and `whic
 ## Current scope
 
 - Detect common native, Snap, and Flatpak Steam locations and additional Steam libraries from `libraryfolders.vdf`.
-- Read installed-game metadata from Steam app manifests, and look for the game's Proton prefix under `steamapps/compatdata/<AppID>/pfx`.
+- Read installed-game metadata from Steam app manifests, support user-added Steam library folders, and look for the game's Proton prefix under `steamapps/compatdata/<AppID>/pfx`.
 - Find Windows executables and read their PE architecture. When a game has multiple executables, ask which one ReShade should sit beside.
 - Support the upstream script's DirectX/OpenGL install and uninstall flow. Vulkan is omitted because the upstream script marks it experimental and currently nonfunctional under Wine.
 - Show the target game folder and prospective changes before asking for confirmation.

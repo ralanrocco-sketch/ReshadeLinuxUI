@@ -1,8 +1,8 @@
 """KDE-friendly, lightweight game picker and installer window."""
 from pathlib import Path
-from PySide6.QtCore import Qt,QProcess
+from PySide6.QtCore import Qt,QProcess,QSettings
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QComboBox,QFormLayout,QHBoxLayout,QInputDialog,QLabel,QListWidget,QListWidgetItem,QMainWindow,QMessageBox,QPushButton,QSplitter,QTextEdit,QVBoxLayout,QWidget
+from PySide6.QtWidgets import QComboBox,QDialog,QDialogButtonBox,QFileDialog,QFormLayout,QHBoxLayout,QInputDialog,QLabel,QListWidget,QListWidgetItem,QMainWindow,QMessageBox,QPushButton,QSplitter,QTextEdit,QVBoxLayout,QWidget
 from proton.prefix import is_valid_prefix
 from reshade.backup import restore_game_backups
 from reshade.detector import MAIN_PATH,inspect_game
@@ -12,11 +12,12 @@ from steam.games import find_executables,pe_architecture
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__(); self.setWindowTitle("ReShade Linux GUI"); self.resize(1000,690); self.setMinimumSize(760,520)
-        self.games=[]; self.selected_game=None; self.reshade_dir=None; self.backups=[]; self.pending_action=None; self.pending_game_dir=None; self.pending_app_id=None; self.process=QProcess(self); self._build_ui()
+        self.settings=QSettings(); self.games=[]; self.selected_game=None; self.reshade_dir=None; self.backups=[]; self.pending_action=None; self.pending_game_dir=None; self.pending_app_id=None; self.process=QProcess(self); self._build_ui()
         self.process.started.connect(self._send_script_input); self.process.readyReadStandardOutput.connect(self._read_output); self.process.readyReadStandardError.connect(self._read_error); self.process.finished.connect(self._finished); self.process.errorOccurred.connect(self._process_error); self.refresh_games()
     def _build_ui(self):
         root=QWidget(); outer=QVBoxLayout(root); outer.setContentsMargins(24,18,24,20); outer.setSpacing(14)
         top=QHBoxLayout(); title=QLabel("ReShade / Linux"); title.setFont(QFont("Noto Sans",19,QFont.DemiBold)); top.addWidget(title); top.addStretch(1)
+        self.library_button=QPushButton("Steam libraries…"); self.library_button.clicked.connect(self._manage_libraries); top.addWidget(self.library_button)
         self.refresh_button=QPushButton("Rescan Steam"); self.refresh_button.clicked.connect(self.refresh_games); top.addWidget(self.refresh_button); outer.addLayout(top)
         intro=QLabel("Choose a Steam game. This app finds its install folder and Proton prefix for you."); intro.setObjectName("muted"); outer.addWidget(intro)
         splitter=QSplitter(Qt.Horizontal); self.game_list=QListWidget(); self.game_list.currentRowChanged.connect(self._select_game); self.game_list.setMinimumWidth(230); splitter.addWidget(self.game_list)
@@ -31,13 +32,49 @@ class MainWindow(QMainWindow):
         splitter.addWidget(detail); splitter.setStretchFactor(1,1); outer.addWidget(splitter,1); self.setCentralWidget(root)
         self.setStyleSheet("""QListWidget,QTextEdit{border:1px solid palette(mid);border-radius:6px;padding:6px} QListWidget::item{padding:9px 7px;border-radius:4px} QListWidget::item:selected{background:palette(highlight);color:palette(highlighted-text)} QPushButton,QComboBox{border:1px solid palette(mid);border-radius:5px;padding:7px 11px} QPushButton:hover{border-color:#83b94e} QPushButton#primary{background:#7ebf42;color:#10170d;border:0;font-weight:600} QLabel#muted,QLabel#paths{color:palette(mid)} QLabel#status{font-size:14px;font-weight:600;padding:8px 0}""")
     def refresh_games(self):
-        self.refresh_button.setEnabled(False); self.game_list.clear(); self.paths.setText("Scanning Steam libraries…"); self.games=discover_games(); self.refresh_button.setEnabled(True)
+        self.refresh_button.setEnabled(False); self.game_list.clear(); self.paths.setText("Scanning Steam libraries…"); self.games=discover_games(self._additional_libraries()); self.refresh_button.setEnabled(True)
         for game in self.games:
             item=QListWidgetItem(game.name); item.setData(Qt.UserRole,game.app_id); self.game_list.addItem(item)
-        roots=steam_roots()
+        roots=steam_roots(self._additional_libraries())
         if not self.games:
-            self.game_title.setText("No installed Steam games found"); self.status.setText("Steam library not found" if not roots else "No installed games found in detected libraries"); self.paths.setText("Looked in standard Steam user locations. Rescan after Steam installs a game."); self.install_button.setEnabled(False); self.uninstall_button.setEnabled(False); return
+            self.game_title.setText("No installed Steam games found"); self.status.setText("Steam library not found" if not roots else "No installed games found in detected libraries"); self.paths.setText("Try Steam libraries… to add the folder containing steamapps, then rescan."); self.install_button.setEnabled(False); self.uninstall_button.setEnabled(False); return
         self.log.append(f"Found {len(self.games)} installed games in {len(roots)} Steam installation(s)."); self.game_list.setCurrentRow(0)
+    def _additional_libraries(self):
+        stored=self.settings.value("steam/additional_libraries", [])
+        if isinstance(stored,str): stored=[stored]
+        return [Path(path).expanduser() for path in stored if path]
+    def _manage_libraries(self):
+        dialog=QDialog(self); dialog.setWindowTitle("Steam libraries"); dialog.setMinimumWidth(560)
+        layout=QVBoxLayout(dialog); layout.addWidget(QLabel("Add Steam library folders if a game is missing. Choose the library folder or its steamapps folder."))
+        library_list=QListWidget(); layout.addWidget(library_list)
+        libraries=self._additional_libraries()
+        def populate():
+            library_list.clear()
+            for path in libraries:
+                item=QListWidgetItem(str(path)); item.setData(Qt.UserRole,str(path)); library_list.addItem(item)
+        populate()
+        controls=QHBoxLayout(); add_button=QPushButton("Add folder…"); remove_button=QPushButton("Remove selected"); controls.addWidget(add_button); controls.addWidget(remove_button); controls.addStretch(1); layout.addLayout(controls)
+        def add_library():
+            selected=QFileDialog.getExistingDirectory(dialog,"Select Steam library folder",str(Path.home()))
+            if not selected: return
+            path=Path(selected).expanduser()
+            if path.name.casefold()=="common" and path.parent.name.casefold()=="steamapps": path=path.parent.parent
+            elif path.name.casefold()=="steamapps": path=path.parent
+            if not (path/"steamapps").is_dir():
+                QMessageBox.warning(dialog,"Not a Steam library","Choose the folder containing steamapps, or select the steamapps folder itself.")
+                return
+            path=path.resolve()
+            if path not in libraries:
+                libraries.append(path); populate()
+        def remove_library():
+            row=library_list.currentRow()
+            if 0<=row<len(libraries):
+                libraries.pop(row); populate()
+        add_button.clicked.connect(add_library); remove_button.clicked.connect(remove_library)
+        buttons=QDialogButtonBox(QDialogButtonBox.Close); buttons.rejected.connect(dialog.reject); buttons.accepted.connect(dialog.accept); layout.addWidget(buttons)
+        dialog.exec()
+        self.settings.setValue("steam/additional_libraries",[str(path) for path in libraries])
+        self.refresh_games()
     def _select_game(self,row):
         if row<0 or row>=len(self.games): return
         game=self.games[row]; self.selected_game=game; self.reshade_dir=game.install_dir; status=inspect_game(game.install_dir)

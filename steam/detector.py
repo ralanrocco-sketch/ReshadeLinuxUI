@@ -10,7 +10,7 @@ class SteamGame:
     install_dir: Path
     library_dir: Path
     prefix: Path | None
-def steam_roots() -> list[Path]:
+def steam_roots(additional_roots: list[Path] | None = None) -> list[Path]:
     home=Path.home(); data=Path(os.environ.get("XDG_DATA_HOME",home/".local/share"))
     candidates=[
         data/"Steam",
@@ -20,6 +20,7 @@ def steam_roots() -> list[Path]:
         home/"snap/steam/common/.local/share/Steam",
         home/"snap/steam/common/.steam/steam",
         home/"snap/steam/common/.steam/root",
+        *(Path(path).expanduser() for path in (additional_roots or [])),
     ]
     roots=[]; seen=set()
     for path in candidates:
@@ -37,9 +38,9 @@ def _library_paths(root: Path) -> list[Path]:
                 raw=entry.get("path") if isinstance(entry,dict) else entry
                 if isinstance(raw,str) and Path(raw).expanduser().is_dir(): paths.append(Path(raw).expanduser().resolve())
     return list(dict.fromkeys(paths))
-def discover_games() -> list[SteamGame]:
+def discover_games(additional_roots: list[Path] | None = None) -> list[SteamGame]:
     games=[]; seen=set()
-    for root in steam_roots():
+    for root in steam_roots(additional_roots):
         for library in _library_paths(root):
             apps=library/"steamapps"
             for manifest in apps.glob("appmanifest_*.acf"):
