@@ -1,0 +1,5 @@
+#!/bin/sh
+# Minimal `which` replacement for the upstream script's single-name checks.
+[ "$#" -eq 1 ] || exit 2
+command -v "$1" >/dev/null 2>&1 || exit 1
+command -v "$1"
