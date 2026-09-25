@@ -14,7 +14,7 @@ jobs:
       - name: Install build and bundled helper tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3 python3-pip p7zip-full curl git grep file
+          sudo apt-get install -y python3 python3-pip p7zip-full curl git grep file libegl1 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-shape0 libxcb-util1 libxcb-xkb1 libxkbcommon-x11-0
       - name: Download linuxdeploy
         run: |
           curl -L --fail --retry 3 -o linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
