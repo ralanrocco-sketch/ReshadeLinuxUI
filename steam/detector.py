@@ -12,7 +12,15 @@ class SteamGame:
     prefix: Path | None
 def steam_roots() -> list[Path]:
     home=Path.home(); data=Path(os.environ.get("XDG_DATA_HOME",home/".local/share"))
-    candidates=[data/"Steam",home/".steam/steam",home/".steam/root",home/".var/app/com.valvesoftware.Steam/data/Steam"]
+    candidates=[
+        data/"Steam",
+        home/".steam/steam",
+        home/".steam/root",
+        home/".var/app/com.valvesoftware.Steam/data/Steam",
+        home/"snap/steam/common/.local/share/Steam",
+        home/"snap/steam/common/.steam/steam",
+        home/"snap/steam/common/.steam/root",
+    ]
     roots=[]; seen=set()
     for path in candidates:
         if path.is_dir() and path.resolve() not in seen:
